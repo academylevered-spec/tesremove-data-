@@ -1,0 +1,6 @@
+{
+  "name": "MetaScope",
+  "description": "Penampil metadata universal berbasis browser yang membongkar struktur file hingga lapisan byte, cross-check integritas, skor privasi, dan penjelasan AI opsional.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
