@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import dynamic from 'next/dynamic';
 import {
   ArrowRightLeft,
   Clock,
@@ -25,20 +24,12 @@ import { mergeDeepServerResults, type DeepServerResponse } from '../engine/orche
 import type { AnalysisMode, Locale, Report } from '../engine/types';
 import { formatBytes, translations } from '../i18n/translations';
 import { runPrivateAnalysisInWorker, type RunAnalysisHandle } from '../workers/workerClient';
+import BatchView from './BatchView';
+import CompareView from './CompareView';
+import CompressorView from './CompressorView';
 import DropzoneView from './DropzoneView';
+import RemoverView from './RemoverView';
 import ReportView from './ReportView';
-
-const viewFallback = () => (
-  <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-10 flex items-center justify-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-    <Loader2 className="w-4 h-4 animate-spin text-sky-600 dark:text-sky-400" aria-hidden="true" />
-    <span>Memuat alat...</span>
-  </div>
-);
-
-const CompressorView = dynamic(() => import('./CompressorView'), { ssr: false, loading: viewFallback });
-const RemoverView = dynamic(() => import('./RemoverView'), { ssr: false, loading: viewFallback });
-const CompareView = dynamic(() => import('./CompareView'), { ssr: false, loading: viewFallback });
-const BatchView = dynamic(() => import('./BatchView'), { ssr: false, loading: viewFallback });
 
 const PREFS_EVENT = 'metascope-prefs-change';
 
