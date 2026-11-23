@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { AlertTriangle, Check, Copy, Search, X } from 'lucide-react';
 import type { Locale, TagEntry } from '../engine/types';
 import { formatHexOffset, type Translations } from '../i18n/translations';
@@ -24,15 +24,17 @@ export default function TagsTab({ tags, initialSearch = '', onJumpToHex, locale,
     return Array.from(set).sort();
   }, [tags]);
 
+  const deferredQuery = useDeferredValue(query);
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     return tags.filter((tag) => {
       if (nsFilter !== 'ALL' && tag.ns !== nsFilter) return false;
       if (!q) return true;
       const combined = `${tag.ns}:${tag.name} ${tag.decoded ?? ''} ${typeof tag.raw === 'object' ? JSON.stringify(tag.raw) : String(tag.raw ?? '')} ${tag.source}`.toLowerCase();
       return combined.includes(q);
     });
-  }, [tags, query, nsFilter]);
+  }, [tags, deferredQuery, nsFilter]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, TagEntry[]>();
@@ -183,12 +185,12 @@ export default function TagsTab({ tags, initialSearch = '', onJumpToHex, locale,
                               <span className="text-slate-400">—</span>
                             )}
                           </td>
-                          <td className="py-2.5 px-4 text-right">
+                          <td className="py-2 px-4 text-right">
                             <button
                               type="button"
                               onClick={() => handleCopy(rowId, decodedStr)}
                               aria-label={`${t.copy} ${tag.name}`}
-                              className="inline-flex items-center justify-center rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                              className="inline-flex items-center justify-center rounded-lg min-h-[36px] min-w-[36px] text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer"
                             >
                               {copiedKey === rowId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                             </button>

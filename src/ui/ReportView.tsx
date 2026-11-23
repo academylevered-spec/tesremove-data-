@@ -25,6 +25,7 @@ import {
   Tag,
   X,
   XCircle,
+  Zap,
 } from 'lucide-react';
 import {
   exportReportJson,
@@ -60,6 +61,7 @@ interface ReportViewProps {
   t: Translations;
   onAnalyzeAnother?: () => void;
   onCleanFile?: () => void;
+  onCompressVideo?: () => void;
 }
 
 function downloadText(content: string, filename: string, mime: string) {
@@ -117,7 +119,7 @@ function privacyVerdict(score: number, locale: Locale): { label: string; tone: s
   };
 }
 
-export default function ReportView({ report, file, locale, t, onAnalyzeAnother, onCleanFile }: ReportViewProps) {
+export default function ReportView({ report, file, locale, t, onAnalyzeAnother, onCleanFile, onCompressVideo }: ReportViewProps) {
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [hexJumpOffset, setHexJumpOffset] = useState<number | null>(null);
   const [tagSearchPreset, setTagSearchPreset] = useState('');
@@ -237,12 +239,22 @@ export default function ReportView({ report, file, locale, t, onAnalyzeAnother, 
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 max-w-full">
+            {file && onCompressVideo && report.technical.video && (
+              <button
+                type="button"
+                onClick={onCompressVideo}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-2 min-h-[40px] text-xs font-semibold text-white hover:bg-sky-700 shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" aria-hidden="true" />
+                {t.compressCurrentVideo}
+              </button>
+            )}
             {file && onCleanFile && (
               <button
                 type="button"
                 onClick={onCleanFile}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 min-h-[40px] text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Eraser className="w-3.5 h-3.5" aria-hidden="true" />
                 {t.removerCleanCurrent}
@@ -251,7 +263,7 @@ export default function ReportView({ report, file, locale, t, onAnalyzeAnother, 
             <button
               type="button"
               onClick={() => downloadText(jsonFormatted, `${baseFilename}.metascope.json`, 'application/json')}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" aria-hidden="true" />
               {t.exportJson}
@@ -259,7 +271,7 @@ export default function ReportView({ report, file, locale, t, onAnalyzeAnother, 
             <button
               type="button"
               onClick={() => downloadText(exportStandaloneHtml(report), `${baseFilename}.metascope.html`, 'text/html')}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" aria-hidden="true" />
               HTML
@@ -267,7 +279,7 @@ export default function ReportView({ report, file, locale, t, onAnalyzeAnother, 
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-3.5 py-2 min-h-[40px] text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" aria-hidden="true" />
               PDF
@@ -363,7 +375,7 @@ export default function ReportView({ report, file, locale, t, onAnalyzeAnother, 
       </section>
 
       {/* Accessible Icon-Paired Report Tabs */}
-      <div className="border-b border-slate-200/80 dark:border-slate-800 overflow-x-auto">
+      <div className="border-b border-slate-200/80 dark:border-slate-800 overflow-x-auto no-scrollbar snap-x">
         <div role="tablist" aria-label="Report sections" className="flex items-center gap-1 min-w-max">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -377,7 +389,7 @@ export default function ReportView({ report, file, locale, t, onAnalyzeAnother, 
                 aria-selected={active}
                 aria-controls={`panel-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3.5 py-3 min-h-[44px] snap-start text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   active
                     ? 'border-sky-600 text-sky-700 dark:border-sky-400 dark:text-sky-300 font-semibold'
                     : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
@@ -539,7 +551,7 @@ export default function ReportView({ report, file, locale, t, onAnalyzeAnother, 
                           {locale === 'id' ? 'Bukti' : 'Evidence'}: {f.evidence.join(' · ')}
                         </p>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 max-w-full">
                         {(f.evidenceLinks ?? []).map((link, idx) => (
                           <button
                             key={idx}

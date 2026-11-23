@@ -4,6 +4,7 @@ export interface Translations {
   appName: string;
   tagline: string;
   navAnalyze: string;
+  navCompress: string;
   navRemover: string;
   navCompare: string;
   navBatch: string;
@@ -112,12 +113,16 @@ export interface Translations {
   removerInspectCleaned: string;
   removerCleanAnother: string;
   removerCleanCurrent: string;
+  compressTitle: string;
+  compressSub: string;
+  compressCurrentVideo: string;
 }
 
 const id: Translations = {
   appName: 'MetaScope',
   tagline: 'Bongkar metadata, struktur kontainer, bitstream, dan sinyal privasi hingga lapisan byte.',
   navAnalyze: 'Analisis',
+  navCompress: 'Kompres',
   navRemover: 'Bersihkan',
   navCompare: 'Bandingkan',
   navBatch: 'Batch',
@@ -245,12 +250,16 @@ const id: Translations = {
   removerInspectCleaned: 'Inspeksi file bersih di MetaScope',
   removerCleanAnother: 'Bersihkan file lain',
   removerCleanCurrent: 'Bersihkan metadata',
+  compressTitle: 'Kompres Video Tanpa Turun Kualitas',
+  compressSub: 'Perkecil ukuran video secara maksimal tanpa membengkak (terukur SSIM & PSNR) memakai mesin Python + FFmpeg dengan AV1, H.265/HEVC 10-bit, VP9, dan H.264 — dilengkapi pengaman Anti-Bloat otomatis dan target MB 2-Pass.',
+  compressCurrentVideo: 'Kompres video',
 };
 
 const en: Translations = {
   appName: 'MetaScope',
   tagline: 'Inspect file metadata, container structure, bitstreams, and privacy signals down to the byte layer.',
   navAnalyze: 'Analyze',
+  navCompress: 'Compress',
   navRemover: 'Clean',
   navCompare: 'Compare',
   navBatch: 'Batch',
@@ -378,6 +387,9 @@ const en: Translations = {
   removerInspectCleaned: 'Inspect clean file in MetaScope',
   removerCleanAnother: 'Clean another file',
   removerCleanCurrent: 'Strip metadata',
+  compressTitle: 'Visually Lossless Video Compressor',
+  compressSub: 'Maximize video shrinkage with zero bloat (SSIM & PSNR verified) via our Python + FFmpeg per-title engine using AV1, 10-bit H.265/HEVC, VP9, and H.264 — featuring automatic Anti-Bloat Guard and 2-Pass MB targeting.',
+  compressCurrentVideo: 'Compress video',
 };
 
 export const translations: Record<Locale, Translations> = { id, en };

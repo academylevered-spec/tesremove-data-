@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Search } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { computeEntropyProfile, extractStrings, type EntropyPoint, type ExtractedString } from '../engine/stringsEntropy';
@@ -132,11 +132,12 @@ export default function HexStringsTab({ file, fileSize, jumpOffset, locale, t }:
     }
   };
 
+  const deferredStringFilter = useDeferredValue(stringFilter);
   const filteredStrings = useMemo(() => {
-    const q = stringFilter.trim().toLowerCase();
+    const q = deferredStringFilter.trim().toLowerCase();
     if (!q) return strings;
     return strings.filter((s) => s.value.toLowerCase().includes(q));
-  }, [strings, stringFilter]);
+  }, [strings, deferredStringFilter]);
 
   const handleExportStrings = () => {
     const content = filteredStrings.map((s) => `${formatHexOffset(s.offset)}\t${s.value}`).join('\n');
@@ -151,7 +152,7 @@ export default function HexStringsTab({ file, fileSize, jumpOffset, locale, t }:
 
   if (!file) {
     return (
-      <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-600 dark:text-slate-400">
+      <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-8 text-center text-sm text-slate-600 dark:text-slate-400">
         {locale === 'id'
           ? 'Hex viewer hanya tersedia saat berkas asli dimuat pada sesi aktif (laporan dari riwayat lokal tidak menyimpan byte biner file).'
           : 'Hex viewer is only available when the original file is loaded in the active session (saved history stores metadata only, not binary bytes).'}
@@ -172,7 +173,7 @@ export default function HexStringsTab({ file, fileSize, jumpOffset, locale, t }:
               type="button"
               aria-selected={subView === v}
               onClick={() => setSubView(v)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+              className={`rounded-md px-3 py-2 min-h-[36px] text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 subView === v
                   ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
@@ -207,24 +208,26 @@ export default function HexStringsTab({ file, fileSize, jumpOffset, locale, t }:
       </div>
 
       {subView === 'hex' && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-          <div className="grid grid-cols-[110px_1fr_180px] gap-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-2 text-xs font-mono font-semibold text-slate-500 dark:text-slate-400">
-            <span>OFFSET</span>
-            <span>00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F</span>
-            <span>ASCII</span>
-          </div>
-          <div
-            ref={scrollerRef}
-            onScroll={(e) => {
-              const top = e.currentTarget.scrollTop;
-              const nextRow = Math.min(totalRows - 1, Math.max(0, Math.floor((top * virtualRowScale) / ROW_HEIGHT)));
-              if (nextRow !== scrollRow) setScrollRow(nextRow);
-            }}
-            style={{ height: `${VIEWPORT_ROWS * ROW_HEIGHT}px` }}
-            className="overflow-y-auto relative font-mono text-xs tabular-nums"
-            tabIndex={0}
-            aria-label="Virtualized hex byte viewer"
-          >
+        <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+          <div className="overflow-x-auto">
+            <div className="min-w-[660px]">
+              <div className="grid grid-cols-[110px_1fr_180px] gap-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-2.5 text-xs font-mono font-semibold text-slate-500 dark:text-slate-400">
+                <span>OFFSET</span>
+                <span>00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F</span>
+                <span>ASCII</span>
+              </div>
+              <div
+                ref={scrollerRef}
+                onScroll={(e) => {
+                  const top = e.currentTarget.scrollTop;
+                  const nextRow = Math.min(totalRows - 1, Math.max(0, Math.floor((top * virtualRowScale) / ROW_HEIGHT)));
+                  if (nextRow !== scrollRow) setScrollRow(nextRow);
+                }}
+                style={{ height: `${VIEWPORT_ROWS * ROW_HEIGHT}px` }}
+                className="overflow-y-auto relative font-mono text-xs tabular-nums"
+                tabIndex={0}
+                aria-label="Virtualized hex byte viewer"
+              >
             <div style={{ height: `${totalScrollHeight}px`, position: 'relative' }}>
               <div
                 style={{
@@ -285,9 +288,11 @@ export default function HexStringsTab({ file, fileSize, jumpOffset, locale, t }:
                   );
                 })}
               </div>
+              </div>
+            </div>
             </div>
           </div>
-          <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
+          <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between gap-2">
             <span className="tabular-nums">
               {formatNumber(fileSize, locale, 0)} byte · {formatNumber(totalRows, locale, 0)} {locale === 'id' ? 'baris' : 'rows'}
             </span>
@@ -299,7 +304,7 @@ export default function HexStringsTab({ file, fileSize, jumpOffset, locale, t }:
       )}
 
       {subView === 'strings' && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
+        <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-4 sm:p-5 space-y-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
@@ -366,7 +371,7 @@ export default function HexStringsTab({ file, fileSize, jumpOffset, locale, t }:
       )}
 
       {subView === 'entropy' && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             {locale === 'id' ? 'Profil Entropi Shannon (0–8 bit/byte)' : 'Shannon Byte Entropy Profile (0–8 bits/byte)'}
           </h3>

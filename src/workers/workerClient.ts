@@ -7,6 +7,19 @@ export interface RunAnalysisHandle {
   cancel: () => void;
 }
 
+/**
+ * Scales Web Worker concurrency safely to device CPU cores:
+ * mobile/low-core devices stay responsive (2), multi-core desktops run faster (up to 4).
+ */
+export function getOptimalWorkerConcurrency(): number {
+  if (typeof navigator === 'undefined') return 2;
+  const cores = Number(navigator.hardwareConcurrency) || 4;
+  if (cores <= 2) return 1;
+  if (cores <= 4) return 2;
+  if (cores <= 6) return 3;
+  return 4;
+}
+
 export function runPrivateAnalysisInWorker(
   file: Blob,
   filename: string,

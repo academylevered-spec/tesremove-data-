@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import { AlertTriangle, CheckCircle2, Download, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Download, Film, Music, XCircle } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -27,18 +27,25 @@ interface TechnicalTabProps {
 export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: TechnicalTabProps) {
   const { video, image, audio, document: doc } = report.technical;
   const { bitstream, stats } = report;
+  const [failedMediaUrl, setFailedMediaUrl] = useState<string | null>(null);
 
-  // Create and cleanly revoke local Object URL for main image preview (never uploaded)
-  const mainImageUrl = useMemo(() => {
-    if (!file || !image || typeof URL === 'undefined') return null;
+  // Create and cleanly revoke local Object URL for image/video/audio preview (never uploaded)
+  const localMediaUrl = useMemo(() => {
+    if (!file || (!image && !video && !audio) || typeof URL === 'undefined') return null;
     return URL.createObjectURL(file);
-  }, [file, image]);
+  }, [file, image, video, audio]);
 
   useEffect(() => {
     return () => {
-      if (mainImageUrl) URL.revokeObjectURL(mainImageUrl);
+      if (localMediaUrl) URL.revokeObjectURL(localMediaUrl);
     };
-  }, [mainImageUrl]);
+  }, [localMediaUrl]);
+
+  const mainImageUrl = image ? localMediaUrl : null;
+  const videoUrl = video ? localMediaUrl : null;
+  const audioUrl = audio ? localMediaUrl : null;
+  const videoPreviewError = Boolean(videoUrl && failedMediaUrl === videoUrl);
+  const audioPreviewError = Boolean(audioUrl && failedMediaUrl === audioUrl);
 
   const downloadDataUrl = (dataUrl: string, filename: string) => {
     const a = document.createElement('a');
@@ -49,7 +56,7 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
 
   if (!video && !image && !audio && !doc) {
     return (
-      <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-sm text-slate-600 dark:text-slate-400">
+      <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-8 text-sm text-slate-600 dark:text-slate-400 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
         {t.deepAnalysisUnavailable}
       </div>
     );
@@ -60,7 +67,48 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
       {/* VIDEO PANEL */}
       {video && (
         <>
-          <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+          {videoUrl && (
+            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-2">
+                  <Film className="w-4 h-4 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+                  <span>{locale === 'id' ? 'Pratinjau Video Lokal' : 'Local Video Preview'}</span>
+                </h3>
+                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                  {video.width && video.height ? `${video.width}×${video.height}` : ''}{video.codec ? ` · ${video.codec}` : ''}
+                </span>
+              </div>
+              {videoPreviewError ? (
+                <div className="rounded-xl border border-amber-200 dark:border-amber-800/80 bg-amber-50/80 dark:bg-amber-950/30 p-4 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                  <span>
+                    {locale === 'id'
+                      ? 'Browser di perangkat ini belum mendukung pemutaran langsung codec/kontainer ini. Semua metadata biner tetap terbaca penuh — Anda dapat mengonversinya ke preset universal di tab Kompres.'
+                      : 'This browser does not natively decode this video codec/container. All binary metadata is still parsed accurately — you can convert it to a universal preset in the Compress tab.'}
+                  </span>
+                </div>
+              ) : (
+                <div className="rounded-xl overflow-hidden bg-slate-950 border border-slate-200/80 dark:border-slate-800">
+                  <video
+                    key={videoUrl}
+                    src={videoUrl}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    onLoadedMetadata={(e) => {
+                      if (e.currentTarget.videoWidth === 0 || e.currentTarget.videoHeight === 0) {
+                        setFailedMediaUrl(videoUrl);
+                      }
+                    }}
+                    onError={() => setFailedMediaUrl(videoUrl)}
+                    className="w-full max-h-80 object-contain mx-auto"
+                  />
+                </div>
+              )}
+            </section>
+          )}
+
+          <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">
               {locale === 'id' ? 'Ringkasan Kontainer & Video' : 'Container & Video Summary'}
             </h3>
@@ -130,7 +178,7 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
           </section>
 
           {/* Tracks table */}
-          <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+          <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {locale === 'id' ? 'Tabel Track Media' : 'Media Tracks'}
@@ -170,7 +218,7 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
 
           {/* Bitstream: hvcC/avcC + NAL + SEI */}
           {bitstream && (
-            <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-5">
+            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-5">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 Bitstream ({bitstream.codec.toUpperCase()} — {bitstream.codec === 'hevc' ? 'hvcC' : 'avcC'}, NAL &amp; SEI)
               </h3>
@@ -245,7 +293,7 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
 
           {/* Video Stats: Bitrate per Second & GOP Charts + Keyframe list */}
           {stats && (
-            <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-6">
+            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {locale === 'id' ? 'Statistik Bitrate & GOP (Detik Penuh)' : 'Bitrate & GOP Statistics (Full Seconds)'}
@@ -311,7 +359,7 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
       {/* IMAGE PANEL */}
       {image && (
         <>
-          <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4">
+          <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-4">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               {locale === 'id' ? 'Data Teknis Gambar' : 'Image Technical Details'}
             </h3>
@@ -355,7 +403,7 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
 
           {/* Side-by-side Main Image vs Embedded Thumbnail */}
           {(mainImageUrl || image.thumbnail?.present) && (
-            <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {locale === 'id' ? 'Pratinjau Lokal & Thumbnail Tertanam' : 'Local Preview & Embedded Thumbnail'}
@@ -410,7 +458,7 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
 
           {/* JPEG DQT Quantization Table Chart */}
           {image.quantizationTables && image.quantizationTables.length > 0 && (
-            <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4">
+            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-4">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {locale === 'id' ? 'Tabel Kuantisasi JPEG (DQT)' : 'JPEG Quantization Tables (DQT)'}
               </h3>
@@ -437,7 +485,7 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
 
           {/* PNG Chunks & CRC Verification */}
           {image.pngChunks && image.pngChunks.length > 0 && (
-            <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+            <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
               <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {locale === 'id' ? 'Verifikasi Chunk & CRC32 PNG' : 'PNG Chunks & CRC32 Verification'}
@@ -488,10 +536,25 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
 
       {/* AUDIO PANEL */}
       {audio && (
-        <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-5">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {locale === 'id' ? 'Data Teknis Audio' : 'Audio Technical Details'}
-          </h3>
+        <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-2">
+              <Music className="w-4 h-4 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+              <span>{locale === 'id' ? 'Data Teknis Audio' : 'Audio Technical Details'}</span>
+            </h3>
+          </div>
+          {audioUrl && !audioPreviewError && (
+            <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 p-3">
+              <audio
+                key={audioUrl}
+                src={audioUrl}
+                controls
+                preload="metadata"
+                onError={() => setFailedMediaUrl(audioUrl)}
+                className="w-full h-10"
+              />
+            </div>
+          )}
           <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <dt className="text-xs text-slate-500">Codec</dt>
@@ -547,7 +610,7 @@ export default function TechnicalTab({ report, file, onJumpToHex, locale, t }: T
 
       {/* DOCUMENT & ARCHIVE PANEL */}
       {doc && (
-        <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-5">
+        <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-5">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             {locale === 'id' ? `Inspeksi Dokumen / Arsip (${doc.format})` : `Document / Archive Inspection (${doc.format})`}
           </h3>

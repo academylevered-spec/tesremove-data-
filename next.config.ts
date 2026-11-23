@@ -47,6 +47,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' blob: data: https://*.tile.openstreetmap.org https://unpkg.com",
+              "media-src 'self' blob:",
               "connect-src 'self' blob: data: https://*.tile.openstreetmap.org",
               "object-src 'none'",
               "base-uri 'self'",

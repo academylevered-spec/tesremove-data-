@@ -21,6 +21,7 @@ import {
   RotateCcw,
   ShieldCheck,
   Sparkles,
+  Zap,
 } from 'lucide-react';
 import {
   buildSampleAiPng,
@@ -45,6 +46,7 @@ interface RemoverViewProps {
   initialFile?: { blob: Blob; name: string } | null;
   onConsumeInitialFile?: () => void;
   onInspectCleaned: (report: Report, blob: Blob) => void;
+  onCompressCleaned?: (blob: Blob, filename: string) => void;
 }
 
 interface CleanSession {
@@ -78,6 +80,7 @@ export default function RemoverView({
   initialFile,
   onConsumeInitialFile,
   onInspectCleaned,
+  onCompressCleaned,
 }: RemoverViewProps) {
   const [options, setOptions] = useState<StripOptions>(DEFAULT_STRIP_OPTIONS);
   const [dragging, setDragging] = useState(false);
@@ -130,6 +133,25 @@ export default function RemoverView({
       void runClean(initialFile.blob, initialFile.name, options);
     }
   }, [initialFile, onConsumeInitialFile, options, runClean]);
+
+  // Clipboard paste support (Ctrl+V) for instant image metadata cleaning
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file') {
+          const f = item.getAsFile();
+          if (f) {
+            void runClean(f, f.name || `clipboard_${Date.now()}.png`, options);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [options, runClean]);
 
   const handleToggleOption = (key: keyof StripOptions) => {
     const next = { ...options, [key]: !options[key] };
@@ -489,15 +511,27 @@ export default function RemoverView({
                       onClick={() =>
                         downloadBlob(session.stripResult.cleanedBlob, session.stripResult.cleanedFilename)
                       }
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-emerald-700 shadow-xs transition-colors cursor-pointer"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 min-h-[44px] text-xs sm:text-sm font-semibold text-white hover:bg-emerald-700 shadow-xs transition-colors cursor-pointer"
                     >
                       <Download className="w-4 h-4 shrink-0" aria-hidden="true" />
                       <span>{t.removerDownload}</span>
                     </button>
+                    {onCompressCleaned && session.afterReport.file.detectedFamily === 'video' && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onCompressCleaned(session.stripResult.cleanedBlob, session.stripResult.cleanedFilename)
+                        }
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm font-semibold text-white hover:bg-sky-700 shadow-xs transition-colors cursor-pointer"
+                      >
+                        <Zap className="w-4 h-4 shrink-0" aria-hidden="true" />
+                        <span>{t.compressCurrentVideo}</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onInspectCleaned(session.afterReport, session.stripResult.cleanedBlob)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-4 py-2.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                     >
                       <FileSearch className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" aria-hidden="true" />
                       <span>{t.removerInspectCleaned}</span>

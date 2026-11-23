@@ -197,6 +197,59 @@ export function detectFromMagicBytes(headerBytes: Uint8Array, filename: string):
     return make('Matroska (MKV)', 'video/x-matroska', 'video', ['mkv', 'mka', 'webm']);
   }
 
+  // Flash Video (FLV)
+  if (b.length >= 4 && ascii(b, 0, 3) === 'FLV' && b[3] === 0x01) {
+    return make('FLV Video', 'video/x-flv', 'video', ['flv']);
+  }
+
+  // Windows Media / ASF (WMV / WMA)
+  if (
+    b.length >= 16 &&
+    b[0] === 0x30 && b[1] === 0x26 && b[2] === 0xb2 && b[3] === 0x75 &&
+    b[4] === 0x8e && b[5] === 0x66 && b[6] === 0xcf && b[7] === 0x11
+  ) {
+    if (ext === 'wma') return make('WMA Audio (ASF)', 'audio/x-ms-wma', 'audio', ['wma', 'asf']);
+    return make('WMV Video (ASF)', 'video/x-ms-wmv', 'video', ['wmv', 'asf']);
+  }
+
+  // MPEG Transport Stream (TS: 0x47 sync byte every 188 bytes; M2TS: 0x47 at +4 and +196)
+  if (b.length >= 377 && b[0] === 0x47 && b[188] === 0x47 && b[376] === 0x47) {
+    return make('MPEG-TS Video', 'video/mp2t', 'video', ['ts', 'mts', 'm2ts']);
+  }
+  if (b.length >= 390 && b[4] === 0x47 && b[196] === 0x47 && b[388] === 0x47) {
+    return make('MPEG-2 TS (M2TS)', 'video/mp2t', 'video', ['m2ts', 'mts', 'ts']);
+  }
+
+  // JPEG XL (naked codestream FF 0A or ISO BMFF JXL container)
+  if (
+    (b.length >= 2 && b[0] === 0xff && b[1] === 0x0a) ||
+    (b.length >= 12 &&
+      b[0] === 0x00 && b[1] === 0x00 && b[2] === 0x00 && b[3] === 0x0c &&
+      ascii(b, 4, 4) === 'JXL ' && b[8] === 0x0d && b[9] === 0x0a)
+  ) {
+    return make('JPEG XL', 'image/jxl', 'image', ['jxl']);
+  }
+
+  // Adobe Photoshop PSD / PSB
+  if (b.length >= 6 && ascii(b, 0, 4) === '8BPS' && (b[5] === 1 || b[5] === 2)) {
+    return make('Photoshop PSD', 'image/vnd.adobe.photoshop', 'image', ['psd', 'psb']);
+  }
+
+  // Windows Icon (ICO)
+  if (b.length >= 4 && b[0] === 0x00 && b[1] === 0x00 && b[2] === 0x01 && b[3] === 0x00) {
+    return make('ICO', 'image/x-icon', 'image', ['ico']);
+  }
+
+  // AAC ADTS raw stream (FF F1 or FF F9)
+  if (b.length >= 2 && b[0] === 0xff && (b[1] === 0xf1 || b[1] === 0xf9)) {
+    return make('AAC Audio (ADTS)', 'audio/aac', 'audio', ['aac']);
+  }
+
+  // RAR archive (Rar!\x1A\x07)
+  if (b.length >= 7 && ascii(b, 0, 4) === 'Rar!' && b[4] === 0x1a && b[5] === 0x07) {
+    return make('RAR Archive', 'application/vnd.rar', 'archive', ['rar']);
+  }
+
   // SVG text check
   const textHead = ascii(b, 0, Math.min(b.length, 256)).trimStart();
   if (textHead.startsWith('<svg') || (textHead.startsWith('<?xml') && textHead.includes('<svg'))) {

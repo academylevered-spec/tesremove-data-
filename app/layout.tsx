@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans, DM_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -23,21 +23,31 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#F7F9FC' },
+    { media: '(prefers-color-scheme: dark)', color: '#0B0F17' },
+  ],
+};
+
 export const metadata: Metadata = {
   title: 'MetaScope — Penampil Metadata Universal',
   description:
-    'Penampil metadata universal berbasis browser yang membongkar struktur file hingga lapisan byte, cross-check integritas, skor privasi, dan penjelasan AI opsional.',
+    'Penampil metadata universal, pembersih metadata lossless, dan kompresor video modern untuk semua perangkat dan platform media.',
   openGraph: {
     title: 'MetaScope — Penampil Metadata Universal',
     description:
-      'Penampil metadata universal berbasis browser yang membongkar struktur file hingga lapisan byte, cross-check integritas, skor privasi, dan penjelasan AI opsional.',
+      'Penampil metadata universal, pembersih metadata lossless, dan kompresor video modern untuk semua perangkat dan platform media.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'MetaScope — Penampil Metadata Universal',
     description:
-      'Penampil metadata universal berbasis browser yang membongkar struktur file hingga lapisan byte, cross-check integritas, skor privasi, dan penjelasan AI opsional.',
+      'Penampil metadata universal, pembersih metadata lossless, dan kompresor video modern untuk semua perangkat dan platform media.',
   },
 };
 

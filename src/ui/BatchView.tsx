@@ -9,6 +9,7 @@ import {
   Loader2,
   RefreshCw,
   Square,
+  Trash2,
   Upload,
   XCircle,
 } from 'lucide-react';
@@ -16,7 +17,7 @@ import { exportBatchCsv, exportBatchZip } from '../engine/exporters';
 import { BUILTIN_SAMPLES } from '../engine/samples';
 import type { Locale, Report } from '../engine/types';
 import { formatNumber, type Translations } from '../i18n/translations';
-import { runPrivateAnalysisInWorker, type RunAnalysisHandle } from '../workers/workerClient';
+import { getOptimalWorkerConcurrency, runPrivateAnalysisInWorker, type RunAnalysisHandle } from '../workers/workerClient';
 
 interface BatchItem {
   id: string;
@@ -34,14 +35,13 @@ interface BatchViewProps {
   t: Translations;
 }
 
-const CONCURRENCY = 3;
-
 export default function BatchView({ onOpenReport, locale, t }: BatchViewProps) {
   const [items, setItems] = useState<BatchItem[]>([]);
   const [sortBy, setSortBy] = useState<'name' | 'size' | 'score'>('score');
   const [sortAsc, setSortAsc] = useState(false);
   const activeHandlesRef = useRef<Map<string, RunAnalysisHandle>>(new Map());
   const cancelledRef = useRef(false);
+  const concurrency = useMemo(() => getOptimalWorkerConcurrency(), []);
 
   const runQueue = async (queueItems: BatchItem[]) => {
     cancelledRef.current = false;
@@ -71,7 +71,7 @@ export default function BatchView({ onOpenReport, locale, t }: BatchViewProps) {
       }
     };
 
-    const workers = Array.from({ length: Math.min(CONCURRENCY, queueItems.length) }, () => workerLoop());
+    const workers = Array.from({ length: Math.min(concurrency, queueItems.length) }, () => workerLoop());
     await Promise.all(workers);
   };
 
@@ -224,7 +224,7 @@ export default function BatchView({ onOpenReport, locale, t }: BatchViewProps) {
           <div className="space-y-1.5 flex-1 min-w-[200px]">
             <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 tabular-nums">
               <span>
-                {completedReports.length} / {items.length} {locale === 'id' ? 'selesai' : 'completed'} ({CONCURRENCY} worker)
+                {completedReports.length} / {items.length} {locale === 'id' ? 'selesai' : 'completed'} ({concurrency} worker)
               </span>
               <span className="font-semibold text-slate-900 dark:text-white">
                 {Math.round((completedReports.length / items.length) * 100)}%
@@ -243,7 +243,7 @@ export default function BatchView({ onOpenReport, locale, t }: BatchViewProps) {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800 px-3 py-2 text-xs font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800 px-3 py-2 min-h-[40px] text-xs font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
               >
                 <Square className="w-3 h-3" aria-hidden="true" /> {t.cancelBtn}
               </button>
@@ -252,7 +252,7 @@ export default function BatchView({ onOpenReport, locale, t }: BatchViewProps) {
               <button
                 type="button"
                 onClick={handleRetryFailed}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 px-3 py-2 min-h-[40px] text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" /> {t.retryFailed} ({failedCount})
               </button>
@@ -262,18 +262,27 @@ export default function BatchView({ onOpenReport, locale, t }: BatchViewProps) {
                 <button
                   type="button"
                   onClick={handleExportBatchCsv}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 min-h-[40px] text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" /> {t.batchExportCsv}
                 </button>
                 <button
                   type="button"
                   onClick={handleExportBatchZip}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 min-h-[40px] text-xs font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" /> {t.batchExportZip}
                 </button>
               </>
+            )}
+            {runningCount === 0 && items.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setItems([])}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 min-h-[40px] text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" /> {locale === 'id' ? 'Bersihkan daftar' : 'Clear list'}
+              </button>
             )}
           </div>
         </div>

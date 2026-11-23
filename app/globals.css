@@ -14,6 +14,12 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  button, a, select, input, label {
+    touch-action: manipulation;
   }
 
   h1, h2, h3, h4 {
@@ -36,6 +42,24 @@
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media print {
+  header, footer, nav, button {
+    display: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

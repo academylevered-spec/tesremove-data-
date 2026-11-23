@@ -1,20 +1,97 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Clock, Globe, Loader2, Lock, Moon, Plus, Server, Sun, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import dynamic from 'next/dynamic';
+import {
+  ArrowRightLeft,
+  Clock,
+  Eraser,
+  FileSearch,
+  Globe,
+  Layers,
+  Loader2,
+  Lock,
+  Moon,
+  Plus,
+  Server,
+  Sun,
+  Trash2,
+  X,
+  Zap,
+} from 'lucide-react';
 import { motion } from 'motion/react';
 import { clearAllHistory, deleteHistoryItem, listReportHistory, saveReportHistory, type HistoryEntry } from '../engine/historyDb';
 import { mergeDeepServerResults, type DeepServerResponse } from '../engine/orchestrator';
 import type { AnalysisMode, Locale, Report } from '../engine/types';
 import { formatBytes, translations } from '../i18n/translations';
 import { runPrivateAnalysisInWorker, type RunAnalysisHandle } from '../workers/workerClient';
-import BatchView from './BatchView';
-import CompareView from './CompareView';
 import DropzoneView from './DropzoneView';
-import RemoverView from './RemoverView';
 import ReportView from './ReportView';
 
-type ActiveSection = 'analyze' | 'remover' | 'compare' | 'batch' | 'history';
+const viewFallback = () => (
+  <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-10 flex items-center justify-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+    <Loader2 className="w-4 h-4 animate-spin text-sky-600 dark:text-sky-400" aria-hidden="true" />
+    <span>Memuat alat...</span>
+  </div>
+);
+
+const CompressorView = dynamic(() => import('./CompressorView'), { ssr: false, loading: viewFallback });
+const RemoverView = dynamic(() => import('./RemoverView'), { ssr: false, loading: viewFallback });
+const CompareView = dynamic(() => import('./CompareView'), { ssr: false, loading: viewFallback });
+const BatchView = dynamic(() => import('./BatchView'), { ssr: false, loading: viewFallback });
+
+const PREFS_EVENT = 'metascope-prefs-change';
+
+function subscribePrefs(onStoreChange: () => void) {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(PREFS_EVENT, onStoreChange);
+  window.addEventListener('storage', onStoreChange);
+  return () => {
+    window.removeEventListener(PREFS_EVENT, onStoreChange);
+    window.removeEventListener('storage', onStoreChange);
+  };
+}
+
+function getLocaleSnapshot(): Locale {
+  if (typeof window === 'undefined') return 'id';
+  try {
+    return window.localStorage.getItem('metascope_locale') === 'en' ? 'en' : 'id';
+  } catch {
+    return 'id';
+  }
+}
+
+function getDarkModeSnapshot(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const saved = window.localStorage.getItem('metascope_theme');
+    if (saved === 'dark') return true;
+    if (saved === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
+function writeLocalePref(next: Locale) {
+  try {
+    window.localStorage.setItem('metascope_locale', next);
+  } catch {
+    // ignore storage errors
+  }
+  window.dispatchEvent(new Event(PREFS_EVENT));
+}
+
+function writeDarkModePref(next: boolean) {
+  try {
+    window.localStorage.setItem('metascope_theme', next ? 'dark' : 'light');
+  } catch {
+    // ignore storage errors
+  }
+  window.dispatchEvent(new Event(PREFS_EVENT));
+}
+
+type ActiveSection = 'analyze' | 'compress' | 'remover' | 'compare' | 'batch' | 'history';
 
 function friendlyStageLabel(stage: string, locale: Locale): string {
   const idMap: Record<string, string> = {
@@ -37,8 +114,8 @@ function friendlyStageLabel(stage: string, locale: Locale): string {
 }
 
 export default function MetaScopeApp() {
-  const [locale, setLocale] = useState<Locale>('id');
-  const [darkMode, setDarkMode] = useState(false);
+  const locale = useSyncExternalStore(subscribePrefs, getLocaleSnapshot, () => 'id' as Locale);
+  const darkMode = useSyncExternalStore(subscribePrefs, getDarkModeSnapshot, () => false);
   const [section, setSection] = useState<ActiveSection>('analyze');
   const [mode, setMode] = useState<AnalysisMode>('privat');
 
@@ -48,6 +125,7 @@ export default function MetaScopeApp() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [pendingCleanFile, setPendingCleanFile] = useState<{ blob: Blob; name: string } | null>(null);
+  const [pendingCompressFile, setPendingCompressFile] = useState<{ blob: Blob; name: string } | null>(null);
 
   const activeHandleRef = useRef<RunAnalysisHandle | null>(null);
   const t = translations[locale];
@@ -142,31 +220,37 @@ export default function MetaScopeApp() {
     setAnalyzing(null);
   };
 
-  const navItems: ReadonlyArray<readonly [ActiveSection, string]> = [
-    ['analyze', t.navAnalyze],
-    ['remover', t.navRemover],
-    ['compare', t.navCompare],
-    ['batch', t.navBatch],
-    ['history', t.navHistory],
+  const navItems: ReadonlyArray<{
+    id: ActiveSection;
+    label: string;
+    shortLabel: string;
+    icon: typeof FileSearch;
+  }> = [
+    { id: 'analyze', label: t.navAnalyze, shortLabel: t.navAnalyze, icon: FileSearch },
+    { id: 'compress', label: t.navCompress, shortLabel: t.navCompress, icon: Zap },
+    { id: 'remover', label: t.navRemover, shortLabel: locale === 'id' ? 'Bersih' : 'Clean', icon: Eraser },
+    { id: 'compare', label: t.navCompare, shortLabel: locale === 'id' ? 'Banding' : 'Compare', icon: ArrowRightLeft },
+    { id: 'batch', label: t.navBatch, shortLabel: t.navBatch, icon: Layers },
+    { id: 'history', label: t.navHistory, shortLabel: t.navHistory, icon: Clock },
   ];
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F9FC] text-slate-900 dark:bg-[#0B0F17] dark:text-slate-100">
-      {/* Strict 3-Zone Top Bar Contract */}
+      {/* Strict 3-Zone Top Bar Contract (56px mobile / 64px desktop) */}
       <header className="sticky top-0 z-30 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-[#0E1420]/90 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4 sm:gap-8">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-4 sm:gap-8">
           {/* Zone 1: Single-element Brand Wordmark */}
           <button
             type="button"
             onClick={handleResetToDropzone}
-            className="text-lg font-bold tracking-tight text-slate-900 dark:text-white hover:text-sky-600 dark:hover:text-sky-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="text-lg font-bold tracking-tight text-slate-900 dark:text-white hover:text-sky-600 dark:hover:text-sky-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer min-h-[40px] flex items-center"
           >
             {t.appName}
           </button>
 
-          {/* Zone 2: 4 Concise Single-Line Nav Links (desktop 3-zone bar) */}
-          <nav aria-label="Main navigation" className="hidden sm:flex items-center gap-7 text-sm font-medium">
-            {navItems.map(([id, label]) => (
+          {/* Zone 2: Concise Single-Line Nav Links (desktop 3-zone bar) */}
+          <nav aria-label="Main navigation" className="hidden sm:flex items-center gap-5 lg:gap-6 text-sm font-medium">
+            {navItems.map(({ id, label }) => (
               <button
                 key={id}
                 type="button"
@@ -187,48 +271,27 @@ export default function MetaScopeApp() {
             <button
               type="button"
               onClick={handleResetToDropzone}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 dark:bg-sky-500 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:hover:bg-sky-400 shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 dark:bg-sky-500 px-3.5 py-2 min-h-[40px] text-xs font-semibold text-white hover:bg-slate-800 dark:hover:bg-sky-400 shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{t.newFile}</span>
             </button>
           </div>
         </div>
-
-        {/* Mobile Secondary Navigation Row (<640px) so all 5 tabs fit cleanly */}
-        <nav
-          aria-label="Mobile navigation"
-          className="flex sm:hidden items-center justify-between gap-2 overflow-x-auto border-t border-slate-100 dark:border-slate-800/80 px-4 py-1.5 text-xs font-medium"
-        >
-          {navItems.map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setSection(id)}
-              className={`py-1.5 border-b-2 transition-colors whitespace-nowrap ${
-                section === id
-                  ? 'border-sky-600 text-slate-900 dark:border-sky-400 dark:text-white font-semibold'
-                  : 'border-transparent text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
       </header>
 
       {/* Quiet Workspace Preferences Strip (Privacy reassurance + Language ID/EN + Light/Dark Theme) */}
       <div className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white/60 dark:bg-slate-900/40">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
-          <span className="inline-flex items-center gap-1.5">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2.5 text-xs text-slate-500 dark:text-slate-400">
+          <span className="inline-flex items-center gap-1.5 min-w-0">
             {mode === 'privat' ? (
               <Lock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
             ) : (
               <Server className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" aria-hidden="true" />
             )}
-            <span>{mode === 'privat' ? t.privacyGuarantee : t.modeDeepDesc}</span>
+            <span className="truncate">{mode === 'privat' ? t.privacyGuarantee : t.modeDeepDesc}</span>
           </span>
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <div
               className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 p-0.5"
               role="group"
@@ -237,9 +300,9 @@ export default function MetaScopeApp() {
               <Globe className="w-3.5 h-3.5 text-slate-400 mx-1.5" aria-hidden="true" />
               <button
                 type="button"
-                onClick={() => setLocale('id')}
+                onClick={() => writeLocalePref('id')}
                 aria-pressed={locale === 'id'}
-                className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 min-h-[30px] rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   locale === 'id'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
@@ -249,9 +312,9 @@ export default function MetaScopeApp() {
               </button>
               <button
                 type="button"
-                onClick={() => setLocale('en')}
+                onClick={() => writeLocalePref('en')}
                 aria-pressed={locale === 'en'}
-                className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 min-h-[30px] rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   locale === 'en'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
@@ -263,9 +326,9 @@ export default function MetaScopeApp() {
 
             <button
               type="button"
-              onClick={() => setDarkMode((d) => !d)}
+              onClick={() => writeDarkModePref(!darkMode)}
               aria-label={darkMode ? t.themeLight : t.themeDark}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 px-2.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 px-2.5 py-1 min-h-[32px] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap cursor-pointer"
             >
               {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" /> : <Moon className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />}
               <span>{darkMode ? t.themeLight : t.themeDark}</span>
@@ -275,7 +338,7 @@ export default function MetaScopeApp() {
       </div>
 
       {/* Main Content Viewport */}
-      <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 py-8 sm:py-10">
+      <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 py-6 sm:py-10 pb-24 sm:pb-10">
         <motion.div
           key={`${section}-${Boolean(activeReport)}`}
           initial={{ opacity: 0, y: 6 }}
@@ -366,9 +429,29 @@ export default function MetaScopeApp() {
                         }
                       : undefined
                   }
+                  onCompressVideo={
+                    activeFile
+                      ? () => {
+                          setPendingCompressFile({ blob: activeFile, name: activeReport.file.name });
+                          setSection('compress');
+                        }
+                      : undefined
+                  }
                 />
               )}
             </>
+          )}
+
+          {section === 'compress' && (
+            <CompressorView
+              locale={locale}
+              t={t}
+              initialFile={pendingCompressFile}
+              onConsumeInitialFile={() => setPendingCompressFile(null)}
+              onInspectVideo={(blob, filename) => {
+                void handleAnalyzeFile(blob, filename);
+              }}
+            />
           )}
 
           {section === 'remover' && (
@@ -381,6 +464,10 @@ export default function MetaScopeApp() {
                 setActiveReport(rep);
                 setActiveFile(blob);
                 setSection('analyze');
+              }}
+              onCompressCleaned={(blob, filename) => {
+                setPendingCompressFile({ blob, name: filename });
+                setSection('compress');
               }}
             />
           )}
@@ -419,7 +506,7 @@ export default function MetaScopeApp() {
                       await clearAllHistory();
                       setHistory([]);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800/80 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800/80 bg-white dark:bg-slate-900 px-3.5 py-2 min-h-[40px] text-xs font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                     {t.clearHistory}
@@ -441,7 +528,7 @@ export default function MetaScopeApp() {
                   <button
                     type="button"
                     onClick={handleResetToDropzone}
-                    className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-700 transition-colors cursor-pointer"
+                    className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2.5 min-h-[44px] text-xs font-semibold text-white hover:bg-sky-700 transition-colors cursor-pointer"
                   >
                     {locale === 'id' ? 'Analisis file pertama' : 'Analyze your first file'}
                   </button>
@@ -451,7 +538,7 @@ export default function MetaScopeApp() {
                   {history.map((item) => (
                     <div
                       key={item.id}
-                      className="px-5 py-4 flex flex-wrap items-center justify-between gap-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      className="px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
                     >
                       <button
                         type="button"
@@ -460,7 +547,7 @@ export default function MetaScopeApp() {
                           setActiveFile(null);
                           setSection('analyze');
                         }}
-                        className="text-left min-w-0 flex-1 cursor-pointer"
+                        className="text-left min-w-0 flex-1 cursor-pointer py-1"
                       >
                         <div className="text-sm font-semibold text-slate-900 dark:text-white hover:text-sky-600 dark:hover:text-sky-400 transition-colors truncate">
                           {item.fileName}
@@ -492,7 +579,7 @@ export default function MetaScopeApp() {
                           refreshHistory();
                         }}
                         aria-label={`Hapus ${item.fileName}`}
-                        className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -506,9 +593,38 @@ export default function MetaScopeApp() {
       </main>
 
       {/* Clean Minimal Footer */}
-      <footer className="border-t border-slate-200/70 dark:border-slate-800/70 bg-white/50 dark:bg-slate-950/50 py-5 px-4 text-center text-xs text-slate-500 dark:text-slate-400">
+      <footer className="mb-16 sm:mb-0 border-t border-slate-200/70 dark:border-slate-800/70 bg-white/50 dark:bg-slate-950/50 py-5 px-4 text-center text-xs text-slate-500 dark:text-slate-400">
         MetaScope · {t.legalDisclaimer}
       </footer>
+
+      {/* Ergonomic Thumb-Zone Fixed Bottom Tab Bar for Mobile (<640px) */}
+      <nav
+        aria-label="Mobile navigation"
+        className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-[#0E1420]/95 backdrop-blur-md pb-safe"
+      >
+        <div className="grid grid-cols-6 h-16">
+          {navItems.map(({ id, label, shortLabel, icon: Icon }) => {
+            const active = section === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-label={label}
+                aria-current={active ? 'page' : undefined}
+                onClick={() => setSection(id)}
+                className={`flex flex-col items-center justify-center gap-0.5 min-h-[48px] transition-colors cursor-pointer ${
+                  active
+                    ? 'text-sky-600 dark:text-sky-400 font-semibold'
+                    : 'text-slate-500 dark:text-slate-400 active:text-slate-900 dark:active:text-white'
+                }`}
+              >
+                <Icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+                <span className="text-[10px] leading-tight whitespace-nowrap truncate max-w-[60px]">{shortLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
